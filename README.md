@@ -82,6 +82,11 @@ curl -s http://localhost:8000/api/v1/health/ready | jq
 Interactive API docs live at <http://localhost:8000/docs>. MinIO console at
 <http://localhost:9001> (login with `S3_ACCESS_KEY` / `S3_SECRET_KEY`).
 
+Host ports are deliberately bound to `127.0.0.1` and shifted off the
+defaults (Postgres on `5433`, Redis on `6380`) so the dev stack doesn't
+collide with host-installed services. Containers still talk to each
+other on standard ports over the compose network.
+
 ## Development
 
 ```bash
