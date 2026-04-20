@@ -58,6 +58,9 @@ pick and [`docs/schema.md`](docs/schema.md) for the database design.
 
 Prereqs: Docker Desktop (or Docker Engine + Compose), `make`.
 
+The `Makefile` autodetects Docker Compose v2 (`docker compose`) and falls back
+to v1 (`docker-compose`). Either works; v2 is recommended.
+
 ```bash
 git clone https://github.com/Nishchal45/spendlense-ai.git spendlens
 cd spendlens

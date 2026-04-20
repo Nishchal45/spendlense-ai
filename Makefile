@@ -4,7 +4,21 @@
 	migrate migrate-new migrate-down migrate-history \
 	clean
 
-COMPOSE := docker compose
+# Support both Docker Compose v2 (plugin: `docker compose`) and v1 (`docker-compose`).
+# v2 is preferred; fall back to v1 if the plugin is not registered.
+COMPOSE := $(shell \
+	if docker compose version >/dev/null 2>&1; then \
+		echo "docker compose"; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		echo "docker-compose"; \
+	else \
+		echo ""; \
+	fi)
+
+ifeq ($(strip $(COMPOSE)),)
+$(error Neither `docker compose` (v2 plugin) nor `docker-compose` (v1) found. Install Docker Desktop or the compose plugin.)
+endif
+
 PY := python
 
 help: ## Show this help
