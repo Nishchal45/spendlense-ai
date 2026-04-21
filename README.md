@@ -29,7 +29,7 @@ Under active development. Milestone checklist:
 - [x] Repo, docs, dev stack
 - [x] SQLAlchemy models + initial migration
 - [x] `/health` and `/health/ready` probes
-- [ ] JWT auth (register / login / me)
+- [x] JWT auth (register / login / me)
 - [ ] Expense CRUD with filtering and pagination
 - [ ] Receipt upload to object storage
 - [ ] OCR pipeline (Tesseract → GPT-4V fallback)
