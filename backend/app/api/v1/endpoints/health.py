@@ -3,7 +3,7 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
 from app import __version__
-from app.core.database import get_session
+from app.core.database import session_scope
 from app.core.redis import get_redis
 from app.schemas.health import ComponentStatus, HealthResponse
 
@@ -39,12 +39,8 @@ async def readiness(response: Response) -> HealthResponse:
 
 async def _check_database() -> tuple[str, str | None]:
     try:
-        gen = get_session()
-        session = await gen.__anext__()
-        try:
+        async with session_scope() as session:
             await session.execute(text("SELECT 1"))
-        finally:
-            await gen.aclose()
     except Exception as exc:  # noqa: BLE001 — boundary catch, logged and mapped
         log.warning("health.database_probe_failed", error=str(exc))
         return "down", str(exc)
