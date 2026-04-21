@@ -1,3 +1,5 @@
+from typing import cast
+
 from redis.asyncio import Redis, from_url
 
 from app.core.config import Settings, get_settings
@@ -12,10 +14,15 @@ def init_redis(settings: Settings | None = None) -> Redis:
         return _client
 
     settings = settings or get_settings()
-    _client = from_url(
-        str(settings.redis_url),
-        encoding="utf-8",
-        decode_responses=True,
+    # ``redis.asyncio.from_url`` is untyped upstream; cast keeps callers of
+    # ``get_redis`` typed against a concrete ``Redis``.
+    _client = cast(
+        Redis,
+        from_url(  # type: ignore[no-untyped-call]
+            str(settings.redis_url),
+            encoding="utf-8",
+            decode_responses=True,
+        ),
     )
     return _client
 

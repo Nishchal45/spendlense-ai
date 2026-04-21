@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -40,6 +41,18 @@ async def dispose_engine() -> None:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency: yields a scoped session per request."""
+    async with session_scope() as session:
+        yield session
+
+
+@asynccontextmanager
+async def session_scope() -> AsyncIterator[AsyncSession]:
+    """Async context manager for code outside the request lifecycle.
+
+    Background tasks, health probes, and scripts should use this instead
+    of driving the FastAPI dependency generator by hand.
+    """
     if _session_factory is None:
         init_engine()
     assert _session_factory is not None

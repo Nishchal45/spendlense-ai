@@ -1,11 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -43,12 +44,10 @@ class Receipt(Base, TimestampMixin):
     ocr_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
 
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    parsed_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    parsed_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="receipts")
     expense: Mapped["Expense | None"] = relationship(back_populates="receipt", uselist=False)

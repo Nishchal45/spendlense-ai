@@ -3,8 +3,8 @@ name = "spendlens-backend"
 version = "0.1.0"
 description = "SpendLens backend API"
 requires-python = ">=3.12"
-readme = "../README.md"
-license = { file = "../LICENSE" }
+# readme/license are documented at the repo root; referencing them from here
+# would escape the project directory and setuptools (PEP 621) forbids that.
 
 dependencies = [
   "fastapi>=0.115,<0.116",
@@ -50,6 +50,10 @@ ignore = ["PLR0913"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["PLR2004", "S101"]
 "alembic/versions/*" = ["E501", "N806"]
+# Module-level singletons for the async DB engine and Redis client are
+# intentional — they're initialised once per process from the lifespan hook.
+"app/core/database.py" = ["PLW0603"]
+"app/core/redis.py" = ["PLW0603"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

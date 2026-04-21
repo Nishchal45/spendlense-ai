@@ -9,8 +9,9 @@ Create Date: 2026-04-20 18:00:00.000000
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0001"
 down_revision: str | None = None
@@ -199,9 +200,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.UniqueConstraint(
-            "user_id", "category", "period", name="uq_budget_per_category_period"
-        ),
+        sa.UniqueConstraint("user_id", "category", "period", name="uq_budget_per_category_period"),
     )
 
     op.create_table(
