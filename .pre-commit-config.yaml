@@ -1,0 +1,40 @@
+# Runs before every commit. Matches what CI runs so bad code never leaves the laptop.
+# Install:   pip install pre-commit && pre-commit install
+# Run ad-hoc: pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        files: ^backend/app/
+        args: ["--config-file=backend/pyproject.toml"]
+        additional_dependencies:
+          - "pydantic>=2.9"
+          - "pydantic-settings>=2.6"
+          - "sqlalchemy[asyncio]>=2.0.36"
+          - "fastapi>=0.115"
+          - "structlog>=24.4"
+          - "types-passlib"
+          - "types-python-jose"
