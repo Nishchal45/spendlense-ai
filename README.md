@@ -17,6 +17,9 @@ stays on disk I own.
 ## What it does (when finished)
 
 - Upload a receipt photo → merchant, total, date, line items extracted
+- **Zero-touch ingestion** — forward email receipts to a per-user
+  address, connect Gmail for automatic inbox scanning, or share from
+  any app via the mobile share sheet
 - Expenses auto-categorised; corrections feed back into future predictions
 - Monthly breakdown, category trends, anomaly detection
 - Per-category budgets with threshold alerts

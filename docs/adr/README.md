@@ -9,3 +9,4 @@ implements it. Use `0000-template.md` as the starting point.
 | ID | Title | Status |
 | -- | ----- | ------ |
 | [0001](0001-jwt-auth-over-sessions.md) | JWT access tokens over server-side sessions | Accepted |
+| [0002](0002-receipt-ingestion-channels.md) | Zero-touch receipt ingestion channels (email + Gmail OAuth + share sheet) | Accepted |
