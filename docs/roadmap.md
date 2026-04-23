@@ -27,14 +27,16 @@ mirrors the status column here. Dates are targets, not contracts.
 - Email normalisation, unique-constraint race guard, constant-time
   login failures
 
-## Phase 3 — Expenses CRUD (next)
+## Phase 3 — Expenses CRUD ✅
 
 - `POST /expenses` — create a manual expense
-- `GET /expenses` — paginated list with filters (category, date range,
-  merchant)
+- `GET /expenses` — keyset-paginated list (category, date range,
+  merchant ILIKE, amount range filters)
 - `GET /expenses/{id}`, `PATCH /expenses/{id}`, `DELETE /expenses/{id}`
-- Strong ownership checks — a user can only see their own rows
-- `ETag` / `If-Match` on mutating routes to kill write races
+- Ownership enforced in every query — cross-tenant access returns
+  404, not 403 (no existence oracle)
+- `ETag` / `If-Match` on mutating routes; stale-write = 412
+- Shape documented in [ADR-0003](adr/0003-expenses-api.md)
 
 ## Phase 4 — Receipt upload & storage
 
