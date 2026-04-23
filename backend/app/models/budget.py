@@ -3,12 +3,11 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, UniqueConstraint
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-from app.models.enums import BudgetPeriod, ExpenseCategory
+from app.models.enums import BudgetPeriod, ExpenseCategory, pg_enum
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -26,11 +25,11 @@ class Budget(Base, TimestampMixin):
     )
 
     category: Mapped[ExpenseCategory] = mapped_column(
-        SAEnum(ExpenseCategory, name="expense_category"), nullable=False
+        pg_enum(ExpenseCategory, name="expense_category"), nullable=False
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     period: Mapped[BudgetPeriod] = mapped_column(
-        SAEnum(BudgetPeriod, name="budget_period"),
+        pg_enum(BudgetPeriod, name="budget_period"),
         nullable=False,
         default=BudgetPeriod.MONTHLY,
     )

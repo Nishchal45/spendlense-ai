@@ -4,12 +4,11 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Date, ForeignKey, Index, Numeric, String
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-from app.models.enums import ExpenseCategory, ExpenseSource
+from app.models.enums import ExpenseCategory, ExpenseSource, pg_enum
 
 if TYPE_CHECKING:
     from app.models.line_item import LineItem
@@ -34,7 +33,7 @@ class Expense(Base, TimestampMixin):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
     category: Mapped[ExpenseCategory] = mapped_column(
-        SAEnum(ExpenseCategory, name="expense_category"), nullable=False
+        pg_enum(ExpenseCategory, name="expense_category"), nullable=False
     )
     expense_date: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
@@ -46,7 +45,7 @@ class Expense(Base, TimestampMixin):
         unique=True,
     )
     source: Mapped[ExpenseSource] = mapped_column(
-        SAEnum(ExpenseSource, name="expense_source"),
+        pg_enum(ExpenseSource, name="expense_source"),
         nullable=False,
         default=ExpenseSource.MANUAL,
     )

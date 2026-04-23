@@ -4,13 +4,12 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
-from app.models.enums import OcrMethod, ReceiptStatus
+from app.models.enums import OcrMethod, ReceiptStatus, pg_enum
 
 if TYPE_CHECKING:
     from app.models.expense import Expense
@@ -34,12 +33,12 @@ class Receipt(Base, TimestampMixin):
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
 
     status: Mapped[ReceiptStatus] = mapped_column(
-        SAEnum(ReceiptStatus, name="receipt_status"),
+        pg_enum(ReceiptStatus, name="receipt_status"),
         nullable=False,
         default=ReceiptStatus.UPLOADED,
     )
     ocr_method: Mapped[OcrMethod | None] = mapped_column(
-        SAEnum(OcrMethod, name="ocr_method"), nullable=True
+        pg_enum(OcrMethod, name="ocr_method"), nullable=True
     )
     ocr_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
 
