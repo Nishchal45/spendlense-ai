@@ -38,11 +38,15 @@ mirrors the status column here. Dates are targets, not contracts.
 - `ETag` / `If-Match` on mutating routes; stale-write = 412
 - Shape documented in [ADR-0003](adr/0003-expenses-api.md)
 
-## Phase 4 — Receipt upload & storage
+## Phase 4 — Receipt upload & storage ✅
 
 - `POST /receipts` — multipart upload → MinIO
-- Object-key scheme that doesn't leak user ids
-- Virus/mime sniffing on upload
+- `GET /receipts`, `GET /receipts/{id}`, `DELETE /receipts/{id}`
+- `GET /receipts/{id}/url` — 5-minute signed S3 URL (no proxy)
+- HMAC-prefixed opaque object keys; no user id on the wire
+- Magic-byte MIME sniffing (JPEG/PNG/PDF/WEBP/HEIC); 10 MiB cap
+- S3-first write with explicit blob cleanup on DB failure
+- Shape documented in [ADR-0004](adr/0004-receipt-storage.md)
 
 ## Phase 5 — OCR + categorisation pipeline
 

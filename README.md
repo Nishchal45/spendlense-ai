@@ -34,7 +34,7 @@ Under active development. Milestone checklist:
 - [x] `/health` and `/health/ready` probes
 - [x] JWT auth (register / login / me)
 - [x] Expense CRUD with filtering and pagination
-- [ ] Receipt upload to object storage
+- [x] Receipt upload to object storage
 - [ ] OCR pipeline (Tesseract → GPT-4V fallback)
 - [ ] LLM categorisation with correction feedback loop
 - [ ] Insights engine (trends, anomalies, budgets)
