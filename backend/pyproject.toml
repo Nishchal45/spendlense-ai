@@ -24,6 +24,9 @@ dependencies = [
   "python-multipart>=0.0.17,<0.1",
   "structlog>=24.4,<25.0",
   "httpx>=0.27,<0.28",
+  # S3-compatible object storage. aioboto3 is the async wrapper around
+  # boto3 — same API surface as production S3, talks to MinIO locally.
+  "aioboto3>=13.2,<14.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +38,7 @@ dev = [
   "mypy>=1.13,<2.0",
   "types-passlib",
   "types-python-jose",
+  "types-aioboto3",
 ]
 
 [build-system]
@@ -55,10 +59,12 @@ ignore = ["PLR0913"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["PLR2004", "S101"]
 "alembic/versions/*" = ["E501", "N806"]
-# Module-level singletons for the async DB engine and Redis client are
-# intentional — they're initialised once per process from the lifespan hook.
+# Module-level singletons for the async DB engine, Redis client, and
+# S3 session are intentional — they're initialised once per process
+# (lazy, lock-guarded).
 "app/core/database.py" = ["PLW0603"]
 "app/core/redis.py" = ["PLW0603"]
+"app/core/storage.py" = ["PLW0603"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

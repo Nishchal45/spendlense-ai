@@ -37,8 +37,12 @@ os.environ.setdefault(
 )
 os.environ.setdefault("REDIS_URL", "redis://redis:6379/1")
 os.environ.setdefault("JWT_SECRET", "test-secret-must-be-at-least-32-characters-long")
-os.environ.setdefault("S3_ACCESS_KEY", "test")
-os.environ.setdefault("S3_SECRET_KEY", "test-secret")
+os.environ.setdefault("S3_ACCESS_KEY", "spendlens")
+os.environ.setdefault("S3_SECRET_KEY", "spendlens-secret")
+# The API container talks to the MinIO service on the compose network;
+# CI overrides this to ``http://localhost:9000`` before pytest runs.
+os.environ.setdefault("S3_ENDPOINT_URL", "http://minio:9000")
+os.environ.setdefault("S3_BUCKET", "receipts")
 
 
 def _admin_url(test_url: str) -> str:
