@@ -19,12 +19,15 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import ExpenseCursor
+from app.models.category_correction import CategoryCorrection
 from app.models.enums import ExpenseCategory, ExpenseSource
 from app.models.expense import Expense
+from app.services.categorisation import normalise_merchant
 
 
 class ExpenseNotFoundError(Exception):
@@ -202,13 +205,63 @@ async def update_expense(
     if if_match is not None and if_match != compute_etag(expense):
         raise ETagMismatchError(str(expense_id))
 
+    old_category = expense.category
     for field, value in patch.items():
         setattr(expense, field, value)
+
+    # Stage a correction record *inside the same transaction* so a
+    # partial failure can't desync the user-visible category from the
+    # learned correction. Only write when the category actually
+    # changed and only when the expense has a merchant we can key on
+    # (the parser fills in "Unknown" for receipts we couldn't read,
+    # which would be useless to learn from).
+    if "category" in patch and expense.category != old_category and expense.merchant_name:
+        await _record_correction(
+            session,
+            user_id=user_id,
+            merchant=expense.merchant_name,
+            category=expense.category,
+        )
 
     await session.flush()
     await session.commit()
     await session.refresh(expense)
     return expense
+
+
+async def _record_correction(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    merchant: str,
+    category: ExpenseCategory,
+) -> None:
+    """Upsert ``category_corrections (user_id, merchant) -> category``.
+
+    Uses Postgres ``ON CONFLICT`` so two concurrent corrections from
+    different devices both get applied — the last write wins on the
+    category and the count increments atomically. A naive read-modify-
+    write would race here.
+    """
+    normalised = normalise_merchant(merchant)
+    stmt = (
+        pg_insert(CategoryCorrection)
+        .values(
+            user_id=user_id,
+            merchant_name=normalised,
+            category=category,
+            occurrence_count=1,
+        )
+        .on_conflict_do_update(
+            index_elements=["user_id", "merchant_name"],
+            set_={
+                "category": category,
+                "occurrence_count": CategoryCorrection.occurrence_count + 1,
+                "last_applied_at": func.now(),
+            },
+        )
+    )
+    await session.execute(stmt)
 
 
 async def delete_expense(

@@ -30,7 +30,13 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-os.environ.setdefault("ENVIRONMENT", "test")
+# ``ENVIRONMENT`` must be force-assigned, not ``setdefault``-ed: the
+# api container is started with ``ENVIRONMENT=local`` from
+# docker-compose, and ``setdefault`` would leave that in place. The
+# pipeline tasks short-circuit their auto-enqueue when
+# ``settings.environment == "test"``, so getting this wrong silently
+# triggers OCR + categorisation on every CRUD upload.
+os.environ["ENVIRONMENT"] = "test"
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://spendlens:spendlens@postgres:5432/spendlens_test",

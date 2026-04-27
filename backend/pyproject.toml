@@ -38,6 +38,11 @@ dependencies = [
   "pillow>=11.0,<12.0",
   "pillow-heif>=0.18,<0.21",
   "pytesseract>=0.3.13,<0.4",
+  # LLM categorisation. ``openai`` 1.x ships its own async client and
+  # the AsyncOpenAI surface mirrors the sync one so the categoriser
+  # stays async-native. Optional at runtime — ``settings.openai_api_key``
+  # gates the network call.
+  "openai>=1.50,<2.0",
 ]
 
 [project.optional-dependencies]

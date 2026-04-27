@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 API = "/api/v1"
 
@@ -291,6 +292,131 @@ class TestDelete:
             headers=_auth(token) | {"If-Match": 'W/"nope"'},
         )
         assert resp.status_code == 412
+
+
+class TestCorrectionsWriteBack:
+    """A category change on PATCH must learn for next time.
+
+    The corrections write-back is what makes the categoriser get
+    smarter over time: once a user moves a "Costco" charge from
+    GROCERIES to SHOPPING, every subsequent Costco receipt for that
+    user lands in SHOPPING without further intervention. The
+    semantics live in :mod:`app.services.expense_service`; these
+    tests assert the user-facing contract end-to-end.
+    """
+
+    async def test_category_change_writes_correction(
+        self, client: AsyncClient, token: str, db_session: AsyncSession
+    ) -> None:
+        from sqlalchemy import select
+
+        from app.models.category_correction import CategoryCorrection
+
+        created = await client.post(
+            f"{API}/expenses",
+            json=_payload(merchant_name="Costco Wholesale", category="groceries"),
+            headers=_auth(token),
+        )
+        expense_id = created.json()["id"]
+
+        resp = await client.patch(
+            f"{API}/expenses/{expense_id}",
+            json={"category": "shopping"},
+            headers=_auth(token),
+        )
+        assert resp.status_code == 200
+
+        rows = (
+            (
+                await db_session.execute(
+                    select(CategoryCorrection).where(
+                        CategoryCorrection.merchant_name == "costco wholesale"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(list(rows)) == 1
+        assert rows[0].category.value == "shopping"
+        assert rows[0].occurrence_count == 1
+
+    async def test_repeated_correction_increments_count(
+        self, client: AsyncClient, token: str, db_session: AsyncSession
+    ) -> None:
+        from sqlalchemy import select
+
+        from app.models.category_correction import CategoryCorrection
+
+        # First correction.
+        first = await client.post(
+            f"{API}/expenses",
+            json=_payload(merchant_name="Costco Wholesale", category="groceries"),
+            headers=_auth(token),
+        )
+        await client.patch(
+            f"{API}/expenses/{first.json()['id']}",
+            json={"category": "shopping"},
+            headers=_auth(token),
+        )
+
+        # Second correction on a different expense, same merchant —
+        # the upsert must increment, not insert a duplicate.
+        second = await client.post(
+            f"{API}/expenses",
+            json=_payload(merchant_name="Costco Wholesale", category="groceries"),
+            headers=_auth(token),
+        )
+        await client.patch(
+            f"{API}/expenses/{second.json()['id']}",
+            json={"category": "shopping"},
+            headers=_auth(token),
+        )
+
+        rows = (
+            (
+                await db_session.execute(
+                    select(CategoryCorrection).where(
+                        CategoryCorrection.merchant_name == "costco wholesale"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(list(rows)) == 1
+        assert rows[0].occurrence_count == 2
+
+    async def test_no_correction_when_category_unchanged(
+        self, client: AsyncClient, token: str, db_session: AsyncSession
+    ) -> None:
+        # Patching merchant_name without touching category must NOT
+        # write a correction — there's nothing to learn from.
+        from sqlalchemy import select
+
+        from app.models.category_correction import CategoryCorrection
+
+        created = await client.post(
+            f"{API}/expenses",
+            json=_payload(merchant_name="Acme", category="other"),
+            headers=_auth(token),
+        )
+        await client.patch(
+            f"{API}/expenses/{created.json()['id']}",
+            json={"merchant_name": "Acme Inc"},
+            headers=_auth(token),
+        )
+
+        rows = (
+            (
+                await db_session.execute(
+                    select(CategoryCorrection).where(CategoryCorrection.merchant_name == "acme inc")
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert list(rows) == []
 
 
 # Silence unused-import warnings from the fixture shadowing.
