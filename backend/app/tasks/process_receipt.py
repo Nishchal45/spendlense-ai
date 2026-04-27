@@ -128,6 +128,7 @@ async def _run(receipt_id_str: str) -> None:
         try:
             await _ocr_and_parse(receipt, settings.s3_bucket)
             await session.commit()
+            _enqueue_categorisation(receipt_id_str)
             log.info(
                 "receipts.process.parsed",
                 receipt_id=receipt_id_str,
@@ -157,6 +158,28 @@ async def _run(receipt_id_str: str) -> None:
 
 class _PipelineError(Exception):
     """Domain error inside the OCR pipeline that shouldn't trigger retry."""
+
+
+def _enqueue_categorisation(receipt_id: str) -> None:
+    """Hand off to the categorise-and-create-expense task.
+
+    Short-circuits in the test environment for the same reason
+    ``receipt_service._enqueue_processing`` does — the integration
+    suite exercises CRUD shouldn't pay for a downstream Celery dispatch
+    on every parse. Tests that *want* categorisation invoke
+    ``categorise_receipt`` directly.
+
+    Imports are local to dodge a real circular import: the
+    categorisation task module imports ``celery_app`` (and is
+    discovered by it via ``conf.imports``). Importing it at module top
+    here is fine in practice but makes the dependency graph noisier
+    than it needs to be.
+    """
+    if get_settings().environment == "test":
+        return
+    from app.tasks.categorise_receipt import categorise_receipt
+
+    categorise_receipt.delay(receipt_id)
 
 
 async def _ocr_and_parse(receipt: Receipt, bucket: str) -> None:
