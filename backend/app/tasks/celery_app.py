@@ -41,7 +41,10 @@ from app.core.config import get_settings
 # Explicit task-module list. Add new modules here when they're
 # introduced; the worker imports them at startup, registering every
 # ``@celery_app.task`` decorator they contain.
-_TASK_MODULES: tuple[str, ...] = ("app.tasks.ping",)
+_TASK_MODULES: tuple[str, ...] = (
+    "app.tasks.ping",
+    "app.tasks.process_receipt",
+)
 
 
 def _build_app() -> Celery:

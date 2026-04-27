@@ -29,6 +29,7 @@ from app.core.storage import delete_object, presign_get_url, put_object
 from app.core.storage_keys import build_receipt_key
 from app.models.enums import ReceiptStatus
 from app.models.receipt import Receipt
+from app.tasks.process_receipt import process_receipt
 
 log = structlog.get_logger()
 
@@ -138,7 +139,22 @@ async def create_receipt(
         await delete_object(key=key)
         raise
     await session.refresh(receipt)
+
+    _enqueue_processing(receipt.id)
     return receipt
+
+
+def _enqueue_processing(receipt_id: UUID) -> None:
+    """Hand the new receipt off to the OCR worker.
+
+    Short-circuits in the test environment so the integration suite
+    that exercises CRUD doesn't drag Tesseract into every upload —
+    the dedicated pipeline tests call ``process_receipt`` directly to
+    cover the real path. Production / dev / staging always enqueue.
+    """
+    if get_settings().environment == "test":
+        return
+    process_receipt.delay(str(receipt_id))
 
 
 async def get_receipt(

@@ -31,6 +31,13 @@ dependencies = [
   # in the broker driver so the worker reuses the same Redis instance
   # the API health probes — one fewer moving part in the dev stack.
   "celery[redis]>=5.4,<5.5",
+  # OCR stack. Pillow decodes JPEG/PNG/WEBP natively; pillow-heif adds
+  # HEIC (iOS default) so iPhone uploads don't fail at decode time.
+  # pytesseract shells out to the ``tesseract`` binary that the
+  # Dockerfile already installs.
+  "pillow>=11.0,<12.0",
+  "pillow-heif>=0.18,<0.21",
+  "pytesseract>=0.3.13,<0.4",
 ]
 
 [project.optional-dependencies]
@@ -80,3 +87,11 @@ addopts = "-ra --strict-markers"
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+
+# Third-party libs without type stubs. ``pytesseract`` and
+# ``pillow_heif`` are thin shims around C libraries; the project
+# doesn't ship a ``py.typed`` marker. Adding to ``ignore_missing_imports``
+# at the per-module level keeps the strict check on for everything else.
+[[tool.mypy.overrides]]
+module = ["pytesseract", "pillow_heif"]
+ignore_missing_imports = true
