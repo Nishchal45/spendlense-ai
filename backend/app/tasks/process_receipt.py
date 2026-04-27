@@ -42,13 +42,15 @@ from app.models.enums import OcrMethod, ReceiptStatus
 from app.models.receipt import Receipt
 from app.services.image_preprocess import for_ocr, load_image
 from app.services.ocr import run_tesseract
-from app.services.receipt_parser import parse_receipt_text
+from app.services.pdf_rasterise import PdfRasterError, rasterise_first_page
+from app.services.receipt_parser import ParsedReceipt, parse_receipt_text
+from app.services.vision_ocr import extract_with_vision
 from app.tasks.celery_app import celery_app
 
 log = structlog.get_logger()
 
-_PDF_NOT_SUPPORTED = "PDF receipts are not yet supported by the OCR pipeline"
 _ERROR_MESSAGE_MAX_LEN = 500
+_PDF_MIME = "application/pdf"
 
 
 @celery_app.task(name="spendlens.process_receipt", bind=True, max_retries=3)
@@ -185,35 +187,88 @@ def _enqueue_categorisation(receipt_id: str) -> None:
 async def _ocr_and_parse(receipt: Receipt, bucket: str) -> None:
     """Mutate ``receipt`` in-place with parsed payload + status.
 
-    The session is committed by the caller — this function only
-    updates fields. That keeps the failure-handling cleanup logic in
-    one place (the caller's ``except`` arms) instead of scattering
-    rollbacks across the pipeline.
-    """
-    if receipt.mime_type == "application/pdf":
-        # PDF support is deferred to the GPT-4V fallback in PR #D —
-        # rasterising PDFs needs poppler-utils and pdf2image, both
-        # of which we'd rather add in the same PR that uses them.
-        raise _PipelineError(_PDF_NOT_SUPPORTED)
+    Pipeline branches:
 
+    1. PDF input → rasterise the first page to an RGB image via
+       ``poppler-utils``, then continue down the same path as native
+       images.
+    2. Image input → decode bytes (``pillow-heif`` registered, so
+       HEIC works).
+    3. Run Tesseract for text + mean per-word confidence.
+    4. If confidence is below ``settings.ocr_confidence_threshold``
+       *and* an OpenAI key is configured, hand the original image to
+       GPT-4V and use its structured-extract result instead. Records
+       ``ocr_method=GPT4V`` so analytics can see how often the
+       fallback fires.
+    5. Else, run the regex parser on the Tesseract text. Records
+       ``ocr_method=TESSERACT``.
+
+    The session is committed by the caller — this function only
+    mutates fields so failure-handling cleanup stays in one place.
+    """
     body = await _download_blob(bucket, receipt.storage_key)
 
-    try:
-        img = load_image(body)
-    except Exception as exc:
-        raise _PipelineError(f"Could not decode image: {exc}") from exc
+    image_bytes_for_vision = body
+    image_mime_for_vision = receipt.mime_type
+
+    if receipt.mime_type == _PDF_MIME:
+        try:
+            img = rasterise_first_page(body)
+        except PdfRasterError as exc:
+            raise _PipelineError(f"Could not rasterise PDF: {exc}") from exc
+        # Vision call needs the rasterised image, not the PDF bytes —
+        # OpenAI's image input doesn't accept PDFs directly.
+        image_bytes_for_vision = _encode_jpeg(img)
+        image_mime_for_vision = "image/jpeg"
+    else:
+        try:
+            img = load_image(body)
+        except Exception as exc:
+            raise _PipelineError(f"Could not decode image: {exc}") from exc
 
     ocr_result = run_tesseract(for_ocr(img))
-    parsed = parse_receipt_text(ocr_result.text)
-
     receipt.raw_text = ocr_result.text
-    receipt.parsed_payload = parsed.to_jsonable()
-    # ``Numeric(5, 2)`` column. Store as a 2-decimal string-trip so the
-    # value the DB receives matches the value we logged.
     receipt.ocr_confidence = round(ocr_result.mean_confidence, 2)  # type: ignore[assignment]
-    receipt.ocr_method = OcrMethod.TESSERACT
+
+    settings = get_settings()
+    parsed: ParsedReceipt
+    method: OcrMethod
+    if ocr_result.mean_confidence < settings.ocr_confidence_threshold and settings.openai_api_key:
+        vision_result = await extract_with_vision(
+            image_bytes=image_bytes_for_vision,
+            image_mime=image_mime_for_vision,
+            model=settings.openai_model_vision,
+        )
+        if vision_result is not None:
+            parsed = vision_result
+            method = OcrMethod.GPT4V
+            log.info(
+                "receipts.process.vision_used",
+                receipt_id=str(receipt.id),
+                tesseract_confidence=ocr_result.mean_confidence,
+            )
+        else:
+            # Vision fell over (no key, network, malformed JSON). Take
+            # the Tesseract reading rather than fail outright.
+            parsed = parse_receipt_text(ocr_result.text)
+            method = OcrMethod.TESSERACT
+    else:
+        parsed = parse_receipt_text(ocr_result.text)
+        method = OcrMethod.TESSERACT
+
+    receipt.parsed_payload = parsed.to_jsonable()
+    receipt.ocr_method = method
     receipt.status = ReceiptStatus.PARSED
     receipt.error_message = None
+
+
+def _encode_jpeg(img: Any) -> bytes:
+    """Re-encode a PIL image as JPEG bytes for the vision API."""
+    from io import BytesIO
+
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
 
 
 async def _download_blob(bucket: str, key: str) -> bytes:

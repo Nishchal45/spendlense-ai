@@ -46,6 +46,15 @@ class ReceiptNotFoundError(Exception):
     """Raised when a receipt doesn't exist or isn't owned by the caller."""
 
 
+class ReceiptNotRetryableError(Exception):
+    """Raised when a retry is requested for a receipt that isn't in a
+    terminal-failure state. We only re-enqueue rows that previously
+    failed — re-running a row that's already ``categorised`` would
+    duplicate the user's expense; re-running one that's still in
+    flight (``processing``, ``parsed``) would race the worker.
+    """
+
+
 # 10 MiB is generous for a receipt photo (modern phones produce 2-5 MiB JPEGs
 # and HEIC is smaller). The cap exists to keep a single upload from pinning
 # an API worker on the wire or filling the bucket from one malicious client.
@@ -214,6 +223,33 @@ async def delete_receipt(
         await delete_object(key=key)
     except Exception:  # noqa: BLE001 - intentional broad catch
         log.warning("receipts.blob_delete_failed", storage_key=key, receipt_id=str(receipt_id))
+
+
+async def retry_receipt(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    receipt_id: UUID,
+) -> Receipt:
+    """Reset a failed receipt and re-enqueue it for processing.
+
+    Only ``failed`` rows are retryable — anything else either succeeded
+    (would duplicate work) or is in flight (would race the worker).
+    The row is reset to ``uploaded`` and ``error_message`` is cleared
+    so polling clients see a fresh attempt rather than the old
+    failure.
+    """
+    receipt = await get_receipt(session, user_id=user_id, receipt_id=receipt_id)
+    if receipt.status != ReceiptStatus.FAILED:
+        raise ReceiptNotRetryableError(receipt.status.value)
+
+    receipt.status = ReceiptStatus.UPLOADED
+    receipt.error_message = None
+    await session.commit()
+    await session.refresh(receipt)
+
+    _enqueue_processing(receipt.id)
+    return receipt
 
 
 async def build_download_url(receipt: Receipt) -> str:

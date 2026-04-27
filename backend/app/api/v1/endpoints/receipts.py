@@ -23,16 +23,18 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 
 from app.api.v1.deps import CurrentUser, SessionDep
-from app.schemas.receipt import ReceiptList, ReceiptOut
+from app.schemas.receipt import ReceiptList, ReceiptOut, ReceiptStatusOut
 from app.services.receipt_service import (
     PayloadTooLargeError,
     ReceiptNotFoundError,
+    ReceiptNotRetryableError,
     UnsupportedMediaTypeError,
     build_download_url,
     create_receipt,
     delete_receipt,
     get_receipt,
     list_receipts,
+    retry_receipt,
 )
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
@@ -110,6 +112,63 @@ async def get(
         receipt = await get_receipt(session, user_id=current_user.id, receipt_id=receipt_id)
     except ReceiptNotFoundError as exc:
         raise _not_found() from exc
+    return ReceiptOut.model_validate(receipt)
+
+
+@router.get("/{receipt_id}/status", response_model=ReceiptStatusOut)
+async def get_status(
+    receipt_id: UUID,
+    current_user: CurrentUser,
+    session: SessionDep,
+) -> ReceiptStatusOut:
+    """Polling-friendly snapshot of pipeline progress.
+
+    Clients hitting this on an interval see the receipt walk through
+    ``uploaded → processing → parsed → categorised`` without paying
+    for the full receipt projection. ``error_message`` and
+    ``parsed_payload`` are exposed so the UI can render "we got the
+    merchant and total — confirm or fix?" without a second fetch.
+    """
+    try:
+        receipt = await get_receipt(session, user_id=current_user.id, receipt_id=receipt_id)
+    except ReceiptNotFoundError as exc:
+        raise _not_found() from exc
+    return ReceiptStatusOut.model_validate(receipt)
+
+
+@router.post("/{receipt_id}/retry", response_model=ReceiptOut, status_code=status.HTTP_202_ACCEPTED)
+async def retry(
+    receipt_id: UUID,
+    current_user: CurrentUser,
+    session: SessionDep,
+) -> ReceiptOut:
+    """Re-enqueue a receipt that previously landed in ``failed``.
+
+    202 Accepted (not 200) because the actual reprocessing happens on
+    the worker — the response means "your retry is queued", not "your
+    receipt is parsed". Returns the reset receipt so the client can
+    flip its UI back to "processing" without an extra GET.
+
+    409 Conflict if the row isn't currently in ``failed`` — retrying
+    a row that's still in flight, or one that already produced an
+    expense, is a logic bug on the client side and we surface that
+    rather than silently re-run the pipeline.
+    """
+    try:
+        receipt = await retry_receipt(session, user_id=current_user.id, receipt_id=receipt_id)
+    except ReceiptNotFoundError as exc:
+        raise _not_found() from exc
+    except ReceiptNotRetryableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Receipt is not in a retryable state (current: {exc})",
+        ) from exc
+
+    log.info(
+        "receipts.retried",
+        user_id=str(current_user.id),
+        receipt_id=str(receipt_id),
+    )
     return ReceiptOut.model_validate(receipt)
 
 

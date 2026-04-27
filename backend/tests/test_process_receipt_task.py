@@ -122,6 +122,19 @@ async def user(committed_session: AsyncSession) -> User:
     return await _create_user(committed_session, f"ocr-{uuid4()}@example.com")
 
 
+def _render_receipt_pdf(lines: list[str]) -> bytes:
+    """Render lines on a single page and save as PDF."""
+    width, height = 600, 400
+    img = Image.new("RGB", (width, height), color="white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+    for index, line in enumerate(lines):
+        draw.text((20, 20 + index * 32), line, fill="black", font=font)
+    buf = BytesIO()
+    img.save(buf, format="PDF")
+    return buf.getvalue()
+
+
 class TestProcessReceiptHappyPath:
     async def test_jpeg_receipt_lands_parsed(
         self, committed_session: AsyncSession, user: User
@@ -158,13 +171,41 @@ class TestProcessReceiptHappyPath:
         finally:
             await delete_object(key=receipt.storage_key)
 
-
-class TestProcessReceiptFailureModes:
-    async def test_pdf_marked_failed_with_unsupported_message(
+    async def test_pdf_receipt_lands_parsed(
         self, committed_session: AsyncSession, user: User
     ) -> None:
-        # PDF support is deferred to PR #D — for now the task should
-        # mark the row failed with a clear message rather than crash.
+        # PR #D added PDF rasterisation. A renderable single-page PDF
+        # should travel the same path as a JPEG: rasterise → Tesseract
+        # → parse → ``parsed`` state.
+        body = _render_receipt_pdf(
+            [
+                "Email Receipt",
+                "Date: 2026-04-25",
+                "TOTAL  19.99",
+            ]
+        )
+        receipt = await _seed_receipt(
+            committed_session, user_id=user.id, body=body, mime_type="application/pdf"
+        )
+
+        try:
+            process_receipt.delay(str(receipt.id))
+            await committed_session.refresh(receipt)
+            assert receipt.status == ReceiptStatus.PARSED
+            assert receipt.parsed_payload is not None
+            assert receipt.parsed_payload.get("transaction_date") == "2026-04-25"
+        finally:
+            await delete_object(key=receipt.storage_key)
+
+
+class TestProcessReceiptFailureModes:
+    async def test_malformed_pdf_marked_failed(
+        self, committed_session: AsyncSession, user: User
+    ) -> None:
+        # PR #D added rasterisation via poppler-utils, but garbage
+        # bytes that claim to be PDF still can't be rendered. The
+        # task surfaces that as a domain failure (no retry) rather
+        # than crashing the worker.
         body = b"%PDF-1.4\nfake pdf body\n%%EOF\n"
         receipt = await _seed_receipt(
             committed_session, user_id=user.id, body=body, mime_type="application/pdf"
@@ -175,7 +216,7 @@ class TestProcessReceiptFailureModes:
             await committed_session.refresh(receipt)
             assert receipt.status == ReceiptStatus.FAILED
             assert receipt.error_message is not None
-            assert "PDF" in receipt.error_message
+            assert "rasteris" in receipt.error_message.lower()
         finally:
             await delete_object(key=receipt.storage_key)
 
