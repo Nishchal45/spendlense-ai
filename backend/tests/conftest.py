@@ -44,6 +44,16 @@ os.environ.setdefault("S3_SECRET_KEY", "spendlens-secret")
 os.environ.setdefault("S3_ENDPOINT_URL", "http://minio:9000")
 os.environ.setdefault("S3_BUCKET", "receipts")
 
+# Run Celery tasks synchronously inside pytest. Spinning up a real
+# worker per test would trade test speed for fidelity we don't need —
+# task bodies are unit-testable directly, and eager mode still
+# exercises the task signature/retry config. Production never flips
+# these flags.
+from app.tasks.celery_app import celery_app  # noqa: E402
+
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
+
 
 def _admin_url(test_url: str) -> str:
     """Swap the database name for the default ``postgres`` admin DB so we can
