@@ -82,6 +82,29 @@ services:
       - ./backend:/app
     restart: unless-stopped
 
+  # Celery worker for the OCR + categorisation pipeline. Reuses the
+  # API image so Tesseract and Python deps are identical — drift
+  # between API and worker bytecode would surface as "works in tests,
+  # not in prod." ``--concurrency=2`` is a sensible default for a
+  # laptop; OCR is CPU-bound and overcommitting just thrashes.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
 volumes:
   pg_data:
   redis_data:

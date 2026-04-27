@@ -27,6 +27,10 @@ dependencies = [
   # S3-compatible object storage. aioboto3 is the async wrapper around
   # boto3 — same API surface as production S3, talks to MinIO locally.
   "aioboto3>=13.2,<14.0",
+  # Celery drives the OCR + categorisation pipeline. ``[redis]`` pulls
+  # in the broker driver so the worker reuses the same Redis instance
+  # the API health probes — one fewer moving part in the dev stack.
+  "celery[redis]>=5.4,<5.5",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +43,7 @@ dev = [
   "types-passlib",
   "types-python-jose",
   "types-aioboto3",
+  "celery-types",
 ]
 
 [build-system]
