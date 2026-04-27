@@ -48,12 +48,26 @@ mirrors the status column here. Dates are targets, not contracts.
 - S3-first write with explicit blob cleanup on DB failure
 - Shape documented in [ADR-0004](adr/0004-receipt-storage.md)
 
-## Phase 5 — OCR + categorisation pipeline
+## Phase 5 — OCR + categorisation pipeline ✅
 
-- Celery worker, Redis broker
-- Tesseract first; GPT-4V fallback when confidence < threshold
-- Feedback loop — user corrections update
-  `category_corrections`
+- Celery worker on Redis broker (JSON-only, late acks, soft/hard time limits)
+- Two-task pipeline: `process_receipt` (Tesseract OCR + parser) →
+  `categorise_receipt` (creates the Expense row)
+- Categorisation chain: user corrections → static rule map →
+  `gpt-4o-mini` LLM → `OTHER`. Self-hosted users without an
+  OpenAI key get rules + corrections.
+- GPT-4V fallback when Tesseract mean confidence drops below
+  `ocr_confidence_threshold`; vision returns structured fields
+  directly, no regex round-trip.
+- Polling + recovery: `GET /receipts/{id}/status` and
+  `POST /receipts/{id}/retry`.
+- PDF support via `poppler-utils` + `pdf2image` (first page,
+  200 DPI).
+- Correction feedback loop: PATCHing an expense's category upserts
+  into `category_corrections`; future receipts from that merchant
+  use the corrected category for free.
+- State machine: `uploaded → processing → parsed → categorised | failed`.
+- Shape documented in [ADR-0005](adr/0005-pipeline-architecture.md).
 
 ## Phase 5.5 — Zero-touch ingestion: forward-to-email
 
