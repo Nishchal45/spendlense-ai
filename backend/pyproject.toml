@@ -43,6 +43,11 @@ dependencies = [
   # stays async-native. Optional at runtime — ``settings.openai_api_key``
   # gates the network call.
   "openai>=1.50,<2.0",
+  # PDF rasterisation. ``pdf2image`` shells out to ``pdftoppm`` from
+  # the ``poppler-utils`` apt package (Dockerfile + CI both install it).
+  # We rasterise the first page of email-receipt PDFs so the same
+  # Tesseract path picks them up.
+  "pdf2image>=1.17,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -98,5 +103,5 @@ plugins = ["pydantic.mypy"]
 # doesn't ship a ``py.typed`` marker. Adding to ``ignore_missing_imports``
 # at the per-module level keeps the strict check on for everything else.
 [[tool.mypy.overrides]]
-module = ["pytesseract", "pillow_heif"]
+module = ["pytesseract", "pillow_heif", "pdf2image"]
 ignore_missing_imports = true

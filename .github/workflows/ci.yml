@@ -91,13 +91,13 @@ jobs:
           cache: pip
           cache-dependency-path: backend/pyproject.toml
 
-      # Tesseract is the OS package the OCR pipeline shells out to —
-      # ``pytesseract`` is only a Python binding, so without the
-      # binary on PATH every pipeline test raises
-      # ``TesseractNotFoundError``. The Dockerfile installs the same
-      # package; dev / CI / prod track one Tesseract version stream.
-      - name: Install Tesseract
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+      # OS-level OCR / rasterisation deps the pipeline shells out to:
+      # * tesseract-ocr  — pytesseract binding requires the binary
+      # * poppler-utils  — pdf2image rasterises PDF receipts via pdftoppm
+      # The Dockerfile installs the same packages; dev / CI / prod
+      # track one version stream.
+      - name: Install OCR tooling
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr poppler-utils
 
       - name: Install dependencies
         run: |

@@ -12,6 +12,7 @@ RUN apt-get update \
         build-essential \
         libpq-dev \
         tesseract-ocr \
+        poppler-utils \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
