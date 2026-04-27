@@ -35,8 +35,8 @@ Under active development. Milestone checklist:
 - [x] JWT auth (register / login / me)
 - [x] Expense CRUD with filtering and pagination
 - [x] Receipt upload to object storage
-- [ ] OCR pipeline (Tesseract → GPT-4V fallback)
-- [ ] LLM categorisation with correction feedback loop
+- [x] OCR pipeline (Tesseract → GPT-4V fallback)
+- [x] LLM categorisation with correction feedback loop
 - [ ] Insights engine (trends, anomalies, budgets)
 - [ ] React dashboard
 - [ ] CI/CD and one-command deploy
