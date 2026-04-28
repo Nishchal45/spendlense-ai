@@ -99,13 +99,29 @@ every email provider and doubles as the iOS SMS workaround.
 - Anomaly detection (z-score on rolling mean)
 - Per-category budgets with threshold alerts
 
-## Phase 7 — Frontend
+## Phase 7 — Frontend ✅
 
-- React + TypeScript + Vite
-- React Query for server state, Tailwind for styling
-- Auth token in memory + silent-refresh later
-- PWA `share_target` manifest — receipts from any app (SMS, WhatsApp,
-  Venmo, bank push) land via the browser's share sheet
+- Vite 6 + React 18 + TypeScript 5 strict (with `exactOptionalPropertyTypes`,
+  `verbatimModuleSyntax`, etc.)
+- TanStack Query v5 for server state, React Router DOM v6 for routing,
+  Tailwind v3 for styling
+- Auth via an in-memory pub/sub token store; React context mirrors
+  the store, API client reads it per-request. 401 auto-clears.
+  httpOnly cookie + silent refresh deferred to Phase 8.
+- Login + register flow with route protection
+- Expenses dashboard with cursor-paginated list, debounced merchant
+  search, date range, inline category edit (optimistic), modal
+  create / edit via native `<dialog>`, optimistic delete
+- Receipts dashboard with drag-and-drop upload, status badges keyed
+  to ADR-0005's state machine, two-tier polling (list 5 s, per-row
+  2 s while in flight), one-click retry on failed rows
+- PWA manifest with `share_target` action — receipts shared from
+  the OS share sheet (iOS Safari, Android Chrome) land in the
+  upload flow. Service worker stashes the file in Cache Storage,
+  the SPA route picks it up and runs the authed upload
+- ESLint v9 flat config + Prettier; Vitest + Testing Library; new
+  `frontend` CI job parallel to `backend`
+- Shape documented in [ADR-0006](adr/0006-frontend-architecture.md)
 
 ## Phase 8 — Mobile + ship
 
