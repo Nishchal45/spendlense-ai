@@ -105,7 +105,29 @@ services:
       - ./backend:/app
     restart: unless-stopped
 
+  # Vite dev server for the React/TypeScript frontend. Source is
+  # bind-mounted so HMR catches host edits; ``frontend_node_modules``
+  # is an anonymous volume that hides the host's node_modules from
+  # the container — without it, an ``npm install`` on the host would
+  # clobber the container's binaries with the wrong platform builds
+  # (linux/amd64 vs darwin/arm64).
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    restart: unless-stopped
+
 volumes:
   pg_data:
   redis_data:
   minio_data:
+  frontend_node_modules:

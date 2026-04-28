@@ -118,3 +118,41 @@ jobs:
 
       - name: Run tests
         run: pytest --cov=app --cov-report=term-missing
+
+  frontend:
+    name: frontend (lint + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ``npm ci`` is the right call in CI: it reads the lockfile,
+      # installs exact versions, and fails fast on drift between
+      # ``package.json`` and the lockfile (which would otherwise
+      # silently produce non-reproducible builds).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
