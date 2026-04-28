@@ -3,7 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta
+      name="description"
+      content="Self-hosted expense tracker that turns receipts into categorised spending."
+    />
+
+    <!-- Favicon + iOS home-screen icon. Safari ignores ``manifest`` icons,
+         so ``apple-touch-icon`` has to live here. SVG works on iOS 18+; on
+         older Safari the device falls back to a screenshot of the page,
+         which is acceptable for a portfolio piece. Phase 8 adds rasterised
+         PNGs for full coverage. -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+
+    <!-- Web app manifest. Declares ``share_target`` so the OS share sheet
+         lists SpendLens as a destination for shared images / PDFs. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
     <title>SpendLens</title>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased">
