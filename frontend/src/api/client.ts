@@ -31,7 +31,14 @@ export type ApiRequestInit = RequestInit;
 
 export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (!headers.has('Content-Type') && init.body) {
+  // ``FormData`` bodies need the browser to set the
+  // ``multipart/form-data; boundary=...`` header itself — pinning
+  // ``application/json`` here would break the upload silently. Same
+  // logic for ``Blob`` bodies, where the caller's mime type is
+  // already on the blob.
+  const isStructuredBody =
+    init.body != null && !(init.body instanceof FormData) && !(init.body instanceof Blob);
+  if (!headers.has('Content-Type') && isStructuredBody) {
     headers.set('Content-Type', 'application/json');
   }
   headers.set('Accept', 'application/json');
