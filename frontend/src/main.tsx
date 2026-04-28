@@ -10,7 +10,23 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReceiptsPage } from './pages/ReceiptsPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ShareTargetPage } from './pages/ShareTargetPage';
 import './index.css';
+
+// Register the share-target service worker. The SW is the only way a
+// static SPA can intercept the manifest's POST to ``/share-target``;
+// see ``public/sw.js`` for what it actually does. Browsers without
+// SW support (none we target, but defensive) silently skip — every
+// other surface still works.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // Logging at warn so a SW bug shows up in the console without
+      // breaking the page.
+      console.warn('Service worker registration failed', err);
+    });
+  });
+}
 
 // Single React Query client for the whole app. Defaults are tuned for
 // "humans clicking around an expense dashboard" rather than "background
@@ -56,6 +72,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <ExpensesPage /> },
           { path: 'receipts', element: <ReceiptsPage /> },
+          { path: 'share-target', element: <ShareTargetPage /> },
         ],
       },
     ],
