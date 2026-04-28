@@ -110,7 +110,7 @@ required on all new functions; `mypy --strict` runs in CI.
 ```
 spendlens/
 ├── backend/          FastAPI service, Alembic, Celery tasks
-├── frontend/         React + TypeScript SPA (scaffolded later)
+├── frontend/         React + TypeScript SPA (Vite + React Query + Tailwind)
 ├── docs/             Architecture, schema, decisions
 ├── docker-compose.yml
 ├── Makefile

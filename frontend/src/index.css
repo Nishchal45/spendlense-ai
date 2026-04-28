@@ -1,0 +1,7 @@
+/* Tailwind directives. The base / components / utilities split is
+   load-bearing: ``base`` resets, ``components`` gives us a slot for
+   ``@apply`` shortcuts on common UI primitives, ``utilities`` is the
+   actual utility classes the JIT generates. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

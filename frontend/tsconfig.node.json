@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  // ``vitest.config.ts`` is loaded by vitest at runtime, not via
+  // ``tsc -b``. Keeping it out of project references sidesteps a
+  // version-skew error between vite and vitest's bundled vite types.
+  "include": ["vite.config.ts", "vitest.setup.ts"]
+}
