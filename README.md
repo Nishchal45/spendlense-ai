@@ -38,7 +38,7 @@ Under active development. Milestone checklist:
 - [x] OCR pipeline (Tesseract → GPT-4V fallback)
 - [x] LLM categorisation with correction feedback loop
 - [ ] Insights engine (trends, anomalies, budgets)
-- [ ] React dashboard
+- [x] React dashboard
 - [ ] CI/CD and one-command deploy
 
 ## Stack
