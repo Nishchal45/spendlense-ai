@@ -4,7 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { AuthProvider } from './auth/AuthContext';
+import { ProtectedRoute } from './auth/ProtectedRoute';
 import { HealthPage } from './pages/HealthPage';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import './index.css';
 
 // Single React Query client for the whole app. Defaults are tuned for
@@ -28,21 +32,38 @@ const queryClient = new QueryClient({
   },
 });
 
-// Routes are declared centrally here. As the app grows we'll split
-// this into a ``routes.tsx`` module, but a flat object is more
-// readable while there's only one route.
+// Routing tree:
+//
+//   /                  ← App shell, public (so login / register
+//                        get the branded chrome)
+//     /login           ← public
+//     /register        ← public
+//     [ProtectedRoute] ← auth gate
+//       /              ← dashboard (HealthPage placeholder)
+//
+// As more authed surfaces land they hang off the same protected
+// branch — one place to add a route, one place to enforce the gate.
 const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
-    children: [{ index: true, element: <HealthPage /> }],
+    children: [
+      { path: 'login', element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
+      {
+        element: <ProtectedRoute />,
+        children: [{ index: true, element: <HealthPage /> }],
+      },
+    ],
   },
 ]);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
