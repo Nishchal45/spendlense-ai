@@ -6,7 +6,7 @@ import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
-import { HealthPage } from './pages/HealthPage';
+import { ExpensesPage } from './pages/ExpensesPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import './index.css';
@@ -52,7 +52,7 @@ const router = createBrowserRouter([
       { path: 'register', element: <RegisterPage /> },
       {
         element: <ProtectedRoute />,
-        children: [{ index: true, element: <HealthPage /> }],
+        children: [{ index: true, element: <ExpensesPage /> }],
       },
     ],
   },
