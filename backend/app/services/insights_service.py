@@ -26,11 +26,11 @@ closed (empty result) rather than leaking another tenant's spend.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Numeric, cast, func, select
+from sqlalchemy import Float, Numeric, and_, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import ExpenseCategory
@@ -248,4 +248,171 @@ async def category_trends(
         months=bucket_dates,
         categories=seen_categories,
         buckets=buckets,
+    )
+
+
+# ----- anomaly detection --------------------------------------------------
+
+
+# Defaults tuned for personal finance. ``180`` days of baseline gives
+# the rolling stats enough samples to be meaningful without dragging
+# in lifestyle changes from years past. ``30`` days of lookback is
+# the canonical "this month" surface a user sees on the dashboard.
+# A z-score of ``2.0`` corresponds to roughly the top 2.5% of a normal
+# distribution — strict enough that the dashboard doesn't drown the
+# user in noise. ``min_samples=5`` keeps stddev meaningful; below
+# that the variance estimate is too unstable.
+DEFAULT_BASELINE_DAYS = 180
+DEFAULT_LOOKBACK_DAYS = 30
+DEFAULT_Z_THRESHOLD = 2.0
+MIN_BASELINE_SAMPLES = 5
+
+# Cap the response so a hostile / buggy client (or a real user with a
+# wildly anomalous month) can't ask for an unbounded list.
+MAX_ANOMALY_RESULTS = 50
+
+
+@dataclass(frozen=True)
+class Anomaly:
+    """One row of the anomaly response.
+
+    ``z_score`` is the standardised distance from the per-category
+    baseline mean. The dashboard renders this alongside ``baseline_mean``
+    so the user can see the comparison directly: "$120 vs your usual
+    ~$25 in coffee" reads better than a bare statistic.
+    """
+
+    expense_id: UUID
+    merchant_name: str
+    category: ExpenseCategory
+    amount: Decimal
+    expense_date: date
+    z_score: float
+    baseline_mean: Decimal
+    baseline_stddev: Decimal
+    baseline_samples: int
+
+
+@dataclass(frozen=True)
+class AnomalyReport:
+    """Response for ``GET /insights/anomalies``."""
+
+    lookback_start: date
+    baseline_start: date
+    z_threshold: float
+    anomalies: list[Anomaly]
+
+
+async def detect_anomalies(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    today: date,
+    baseline_days: int = DEFAULT_BASELINE_DAYS,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    z_threshold: float = DEFAULT_Z_THRESHOLD,
+) -> AnomalyReport:
+    """Flag recent expenses that deviate from the per-category baseline.
+
+    Two windows define the analysis:
+
+    * **Baseline** — ``[today - baseline_days, today - lookback_days)``.
+      Per-category mean + sample stddev are computed here. Excluding
+      the lookback range from the baseline is what makes the
+      detector "this is unusual *for me*" instead of "this is unusual
+      compared to itself".
+    * **Lookback** — ``[today - lookback_days, today]``. Each expense
+      in this window is scored ``(amount - mean) / stddev`` against
+      the baseline of its own category. We surface the rows where
+      that z-score meets ``z_threshold``.
+
+    Categories with fewer than :data:`MIN_BASELINE_SAMPLES` baseline
+    rows are skipped — stddev on three observations is meaningless
+    and the dashboard can't say anything useful about them.
+
+    Returned rows are ordered by descending z-score (most anomalous
+    first) and capped at :data:`MAX_ANOMALY_RESULTS`.
+    """
+    baseline_start = today - timedelta(days=baseline_days)
+    lookback_start = today - timedelta(days=lookback_days)
+
+    baseline_cte = (
+        select(
+            Expense.category.label("category"),
+            cast(func.avg(Expense.amount), Numeric(12, 2)).label("mean"),
+            # ``stddev_samp`` (the sample stddev) is the right call
+            # for inferential use — ``stddev_pop`` would understate
+            # variance and produce too many false positives. Postgres
+            # returns ``NULL`` for n=1; the ``HAVING`` clause filters
+            # those before the join.
+            cast(func.stddev_samp(Expense.amount), Numeric(12, 2)).label("stddev"),
+            func.count().label("samples"),
+        )
+        .where(
+            Expense.user_id == user_id,
+            Expense.expense_date >= baseline_start,
+            Expense.expense_date < lookback_start,
+        )
+        .group_by(Expense.category)
+        .having(
+            and_(
+                func.count() >= MIN_BASELINE_SAMPLES,
+                # ``> 0`` filters categories where every receipt was
+                # the same amount (subscriptions etc.) — dividing by
+                # zero would break the z-score and a zero-stddev
+                # category genuinely has no signal to flag against.
+                func.stddev_samp(Expense.amount) > 0,
+            )
+        )
+        .cte("baseline")
+    )
+
+    z_score_expr = cast(Expense.amount - baseline_cte.c.mean, Float) / cast(
+        baseline_cte.c.stddev, Float
+    )
+
+    stmt = (
+        select(
+            Expense.id.label("expense_id"),
+            Expense.merchant_name,
+            Expense.category,
+            Expense.amount,
+            Expense.expense_date,
+            z_score_expr.label("z_score"),
+            baseline_cte.c.mean.label("baseline_mean"),
+            baseline_cte.c.stddev.label("baseline_stddev"),
+            baseline_cte.c.samples.label("baseline_samples"),
+        )
+        .join(baseline_cte, baseline_cte.c.category == Expense.category)
+        .where(
+            Expense.user_id == user_id,
+            Expense.expense_date >= lookback_start,
+            Expense.expense_date <= today,
+            z_score_expr >= z_threshold,
+        )
+        .order_by(z_score_expr.desc())
+        .limit(MAX_ANOMALY_RESULTS)
+    )
+
+    rows = (await session.execute(stmt)).all()
+    anomalies = [
+        Anomaly(
+            expense_id=row.expense_id,
+            merchant_name=row.merchant_name,
+            category=row.category,
+            amount=row.amount,
+            expense_date=row.expense_date,
+            z_score=float(row.z_score),
+            baseline_mean=row.baseline_mean,
+            baseline_stddev=row.baseline_stddev,
+            baseline_samples=row.baseline_samples,
+        )
+        for row in rows
+    ]
+
+    return AnomalyReport(
+        lookback_start=lookback_start,
+        baseline_start=baseline_start,
+        z_threshold=z_threshold,
+        anomalies=anomalies,
     )
