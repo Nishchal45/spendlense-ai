@@ -105,8 +105,13 @@ async def create_receipt(
     *,
     user_id: UUID,
     body: bytes,
+    external_message_id: str | None = None,
 ) -> Receipt:
     """Validate, upload, and persist a new receipt.
+
+    ``external_message_id`` is set by the inbound-email path and
+    drives per-user dedup via the partial unique index. Direct
+    uploads leave it ``None``.
 
     Raises:
         PayloadTooLargeError: if ``body`` exceeds the size cap.
@@ -136,6 +141,7 @@ async def create_receipt(
         mime_type=mime_type,
         file_size_bytes=len(body),
         status=ReceiptStatus.UPLOADED,
+        external_message_id=external_message_id,
     )
     session.add(receipt)
     try:
