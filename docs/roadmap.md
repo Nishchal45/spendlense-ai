@@ -93,11 +93,22 @@ every email provider and doubles as the iOS SMS workaround.
   doesn't care where a message came from
 - Encrypted-at-rest refresh tokens, per-user revocation flow
 
-## Phase 6 — Insights
+## Phase 6 — Insights ✅
 
-- Monthly breakdown, category trends
-- Anomaly detection (z-score on rolling mean)
-- Per-category budgets with threshold alerts
+- `GET /insights/monthly` — per-category totals/counts/averages for
+  one month
+- `GET /insights/trends` — rolling N-month dense (month × category)
+  grid for chart libraries
+- `GET /insights/anomalies` — z-score detection over a rolling
+  baseline with sample-size, zero-stddev, and sample-vs-population
+  defenses
+- `GET /budgets`, `POST/PATCH/DELETE /budgets/{id}` — CRUD with
+  unique-constraint 409, soft-delete via ``active`` flag
+- `GET /budgets/status` — spend-vs-budget per active monthly
+  budget with green/amber/red colour state and threshold alerts
+- Frontend `/insights` page with donut, stacked-bar trend chart,
+  anomaly list, and budget progress bars (Recharts)
+- Shape documented in [ADR-0007](adr/0007-insights-architecture.md)
 
 ## Phase 7 — Frontend ✅
 

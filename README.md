@@ -37,7 +37,7 @@ Under active development. Milestone checklist:
 - [x] Receipt upload to object storage
 - [x] OCR pipeline (Tesseract → GPT-4V fallback)
 - [x] LLM categorisation with correction feedback loop
-- [ ] Insights engine (trends, anomalies, budgets)
+- [x] Insights engine (trends, anomalies, budgets)
 - [x] React dashboard
 - [ ] CI/CD and one-command deploy
 
