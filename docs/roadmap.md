@@ -69,20 +69,29 @@ mirrors the status column here. Dates are targets, not contracts.
 - State machine: `uploaded → processing → parsed → categorised | failed`.
 - Shape documented in [ADR-0005](adr/0005-pipeline-architecture.md).
 
-## Phase 5.5 — Zero-touch ingestion: forward-to-email
+## Phase 5.5 — Zero-touch ingestion: forward-to-email ✅
 
-See [ADR-0002](adr/0002-receipt-ingestion-channels.md). The cheapest,
-broadest receipt-ingestion channel — ships first because it works on
-every email provider and doubles as the iOS SMS workaround.
-
-- Per-user forwarding address (`receipts+<token>@inbox.spendlens.app`)
-  minted on signup
-- Inbound email via a managed provider webhook (Postmark / SES /
-  Mailgun) with signature verification + replay protection
-- `POST /api/v1/inbound/email` hands off to the same ingestion queue
-  the upload endpoint uses
-- Dedup on `(user_id, message_id_hash)` so re-deliveries don't
-  double-book
+- Per-user 128-bit forwarding token (`receipts+<32-hex>@<inbox_email_domain>`)
+  minted at signup via `secrets.token_hex(16)` — not derived from
+  the user id, rotatable, single-index lookup
+- `POST /api/v1/inbound/email` webhook with Stripe-style versioned
+  HMAC-SHA256 signature (`X-SpendLens-Signature: t=<unix>,v1=<hex>`),
+  5-minute replay window, constant-time compare
+- Per-user dedup on `external_message_id` via partial unique index
+  `(user_id, external_message_id) WHERE external_message_id IS NOT NULL`
+  so manual uploads stay NULL while email-sourced rows enforce
+  idempotency
+- Provider-agnostic canonical `InboundEmail` payload; Postmark /
+  SES Inbound / Mailgun adapters land as ADR-0008 follow-ups
+- Each allowed-MIME attachment travels the same `create_receipt`
+  path as direct uploads (S3-first ordering, magic-byte sniff,
+  OCR enqueue)
+- Forwarding address surfaced on the receipts page with one-click
+  copy
+- Status code map: 202 accepted (with `deduped` flag) / 400
+  malformed / 401 bad signature / 404 unknown recipient / 503
+  unset secret
+- Shape documented in [ADR-0008](adr/0008-inbound-email.md)
 
 ## Phase 5.6 — Zero-touch ingestion: Gmail OAuth + generic IMAP
 
