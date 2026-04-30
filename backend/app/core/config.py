@@ -41,6 +41,18 @@ class Settings(BaseSettings):
 
     ocr_confidence_threshold: float = 60.0
 
+    # Domain the user's forward-to-email address lives under. The
+    # full address is ``receipts+<inbox_token>@<inbox_email_domain>``.
+    # The dev default points at a placeholder so a missing env var
+    # doesn't take down ``/auth/me``; production deployments override
+    # via ``INBOX_EMAIL_DOMAIN`` to the real MX-pointed host.
+    inbox_email_domain: str = "inbox.spendlens.local"
+    # Shared secret the inbound-email webhook (Postmark / SES /
+    # Mailgun) signs with. Never logged. Optional in dev so the
+    # rest of the app boots without it; the inbound endpoint
+    # rejects every request with a 503 when it's unset.
+    inbound_email_secret: str | None = None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

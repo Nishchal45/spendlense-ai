@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.api.v1.deps import CurrentUser, SessionDep
 from app.core.config import get_settings
 from app.core.security import create_access_token
+from app.models.user import User
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut, UserOut
 from app.services.user_service import (
     EmailAlreadyRegisteredError,
@@ -35,7 +36,7 @@ async def register(payload: RegisterIn, session: SessionDep) -> UserOut:
         ) from exc
 
     log.info("auth.user_registered", user_id=str(user.id))
-    return UserOut.model_validate(user)
+    return _user_out(user)
 
 
 @router.post("/login", response_model=TokenOut)
@@ -59,4 +60,23 @@ async def login(payload: LoginIn, session: SessionDep) -> TokenOut:
 
 @router.get("/me", response_model=UserOut)
 async def me(current_user: CurrentUser) -> UserOut:
-    return UserOut.model_validate(current_user)
+    return _user_out(current_user)
+
+
+def _user_out(user: User) -> UserOut:
+    """Project a ``User`` ORM row into the wire shape, computing the
+    derived ``inbox_address`` from the configured domain.
+
+    The address is computed at the route layer (not the schema) so
+    Pydantic's ``model_validate`` doesn't need to reach into
+    ``Settings`` — keeping the schema dependency-free makes it
+    importable from one-shot scripts and the test harness.
+    """
+    settings = get_settings()
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        created_at=user.created_at,
+        inbox_token=user.inbox_token,
+        inbox_address=f"receipts+{user.inbox_token}@{settings.inbox_email_domain}",
+    )

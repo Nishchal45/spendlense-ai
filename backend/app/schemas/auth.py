@@ -37,10 +37,23 @@ class TokenOut(BaseModel):
 
 
 class UserOut(BaseModel):
-    """Public projection of a user — never leaks the password hash."""
+    """Public projection of a user — never leaks the password hash.
+
+    ``inbox_token`` rides on the wire so the dashboard can show the
+    user's forward-to-email address. The token is sensitive (anyone
+    with it can fire receipts into the account) but it's also
+    meaningless without the configured MX, so the threat model
+    aligns with "treat like a long-lived bearer for one narrow
+    write surface" — not as bad as the JWT, but not OK in a URL
+    either.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     email: EmailStr
     created_at: datetime
+    inbox_token: str
+    # ``receipts+<inbox_token>@<inbox_email_domain>``. Computed at
+    # the route layer so the schema doesn't reach into Settings.
+    inbox_address: str
