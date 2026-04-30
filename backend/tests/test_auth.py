@@ -115,3 +115,54 @@ class TestMe:
     async def test_me_rejects_bogus_token(self, client: AsyncClient) -> None:
         resp = await client.get(f"{API}/me", headers={"Authorization": "Bearer not-a-real-token"})
         assert resp.status_code == 401
+
+
+class TestInboxToken:
+    """Phase 5.5 forward-to-email surface.
+
+    Every user gets a 128-bit hex token at signup and a derived
+    forward-to-email address rendered against the configured
+    ``inbox_email_domain``. These tests lock in that contract.
+    """
+
+    async def test_register_response_carries_inbox_address(self, client: AsyncClient) -> None:
+        resp = await client.post(
+            f"{API}/register",
+            json={"email": "mailbox@example.com", "password": "hunter2hunter2"},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        # 128 bits = 32 hex chars.
+        assert len(body["inbox_token"]) == 32
+        assert all(c in "0123456789abcdef" for c in body["inbox_token"])
+        # Address is derived: ``receipts+<token>@<domain>``.
+        assert body["inbox_address"].startswith("receipts+")
+        assert body["inbox_address"].endswith("@inbox.spendlens.local")
+        assert body["inbox_token"] in body["inbox_address"]
+
+    async def test_me_returns_same_token_as_register(self, client: AsyncClient) -> None:
+        registered = await client.post(
+            f"{API}/register",
+            json={"email": "stable@example.com", "password": "hunter2hunter2"},
+        )
+        login = await client.post(
+            f"{API}/login",
+            json={"email": "stable@example.com", "password": "hunter2hunter2"},
+        )
+        token = login.json()["access_token"]
+        me = await client.get(f"{API}/me", headers={"Authorization": f"Bearer {token}"})
+
+        # Token is immutable across the session — the address the
+        # user types into Gmail filters has to keep working.
+        assert me.json()["inbox_token"] == registered.json()["inbox_token"]
+
+    async def test_each_user_gets_a_distinct_token(self, client: AsyncClient) -> None:
+        a = await client.post(
+            f"{API}/register",
+            json={"email": "a@example.com", "password": "hunter2hunter2"},
+        )
+        b = await client.post(
+            f"{API}/register",
+            json={"email": "b@example.com", "password": "hunter2hunter2"},
+        )
+        assert a.json()["inbox_token"] != b.json()["inbox_token"]
