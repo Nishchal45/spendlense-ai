@@ -14,11 +14,15 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.v1.deps import CurrentUser, SessionDep
-from app.schemas.insights import CategoryTrendsOut, MonthlyBreakdownOut
+from app.schemas.insights import AnomalyReportOut, CategoryTrendsOut, MonthlyBreakdownOut
 from app.services.insights_service import (
+    DEFAULT_BASELINE_DAYS,
+    DEFAULT_LOOKBACK_DAYS,
     DEFAULT_TRENDS_MONTHS,
+    DEFAULT_Z_THRESHOLD,
     MAX_TRENDS_MONTHS,
     category_trends,
+    detect_anomalies,
     monthly_breakdown,
 )
 
@@ -73,6 +77,72 @@ async def get_category_trends(
     target = _parse_month_or_today(anchor)
     result = await category_trends(session, user_id=current_user.id, anchor=target, months=months)
     return CategoryTrendsOut.model_validate(result)
+
+
+@router.get("/anomalies", response_model=AnomalyReportOut)
+async def get_anomalies(
+    current_user: CurrentUser,
+    session: SessionDep,
+    today: Annotated[
+        str | None,
+        Query(
+            description=(
+                "ISO-8601 date treated as 'today' for the analysis. " "Defaults to actual today."
+            ),
+        ),
+    ] = None,
+    baseline_days: Annotated[
+        int,
+        Query(
+            ge=30,
+            le=730,
+            description="Days of baseline history to compute the per-category mean.",
+        ),
+    ] = DEFAULT_BASELINE_DAYS,
+    lookback_days: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=180,
+            description="Days back from ``today`` to flag anomalies in.",
+        ),
+    ] = DEFAULT_LOOKBACK_DAYS,
+    z_threshold: Annotated[
+        float,
+        Query(
+            ge=0.5,
+            le=10.0,
+            description="Standard-deviation threshold; ``2.0`` is the default.",
+        ),
+    ] = DEFAULT_Z_THRESHOLD,
+) -> AnomalyReportOut:
+    """Recent expenses that deviate from each category's baseline.
+
+    Per-category baseline (mean + sample stddev) is computed over
+    ``[today - baseline_days, today - lookback_days)``. Each expense
+    in the lookback window is z-scored against its category's
+    baseline; rows >= ``z_threshold`` are surfaced.
+
+    422 on a bad ``today``, on the same theory as ``/monthly``.
+    """
+    target = _parse_month_or_today(today)
+    if lookback_days >= baseline_days:
+        # The baseline window must end *before* the lookback window;
+        # otherwise the analysis is comparing the lookback to itself.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="lookback_days must be smaller than baseline_days",
+        )
+
+    result = await detect_anomalies(
+        session,
+        user_id=current_user.id,
+        today=target,
+        baseline_days=baseline_days,
+        lookback_days=lookback_days,
+        z_threshold=z_threshold,
+    )
+    return AnomalyReportOut.model_validate(result)
 
 
 def _parse_month_or_today(value: str | None) -> date:

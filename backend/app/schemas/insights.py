@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -64,3 +65,35 @@ class CategoryTrendsOut(BaseModel):
     months: list[date]
     categories: list[ExpenseCategory]
     buckets: list[TrendBucketOut]
+
+
+class AnomalyOut(BaseModel):
+    """One row of the anomaly response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    expense_id: UUID
+    merchant_name: str
+    category: ExpenseCategory
+    amount: Decimal
+    expense_date: date
+    z_score: float
+    baseline_mean: Decimal
+    baseline_stddev: Decimal
+    baseline_samples: int
+
+
+class AnomalyReportOut(BaseModel):
+    """Response for ``GET /insights/anomalies``.
+
+    The window dates and threshold are echoed back to the client so
+    the UI can render "we looked at the last 30 days against the
+    previous 6 months" without re-doing the date math.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    lookback_start: date
+    baseline_start: date
+    z_threshold: float
+    anomalies: list[AnomalyOut]
