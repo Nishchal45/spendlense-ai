@@ -7,6 +7,7 @@ import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { ExpensesPage } from './pages/ExpensesPage';
+import { InsightsPage } from './pages/InsightsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReceiptsPage } from './pages/ReceiptsPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -72,6 +73,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <ExpensesPage /> },
           { path: 'receipts', element: <ReceiptsPage /> },
+          { path: 'insights', element: <InsightsPage /> },
           { path: 'share-target', element: <ShareTargetPage /> },
         ],
       },

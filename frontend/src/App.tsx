@@ -21,6 +21,7 @@ export function App() {
               <nav className="flex items-center gap-4 text-sm">
                 <NavTab to="/">Expenses</NavTab>
                 <NavTab to="/receipts">Receipts</NavTab>
+                <NavTab to="/insights">Insights</NavTab>
               </nav>
             )}
           </div>
