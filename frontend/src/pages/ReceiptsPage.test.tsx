@@ -3,7 +3,24 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { AuthContext, type AuthContextValue } from '@/auth/AuthContext';
 import { ReceiptsPage } from './ReceiptsPage';
+
+// Auth-context stub so the page's ``InboxAddressCard`` can render
+// without the real ``AuthProvider`` (which would fire its own
+// ``/auth/me`` query and complicate the fetch mocks).
+const AUTHED: AuthContextValue = {
+  token: 'tok',
+  user: {
+    id: 'u1',
+    email: 'me@example.com',
+    created_at: '2026-04-30T00:00:00Z',
+    inbox_token: '0'.repeat(32),
+    inbox_address: `receipts+${'0'.repeat(32)}@inbox.spendlens.local`,
+  },
+  isLoading: false,
+  logout: vi.fn(),
+};
 
 const fetchMock = vi.fn<typeof fetch>();
 vi.stubGlobal('fetch', fetchMock);
@@ -28,9 +45,11 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <ReceiptsPage />
-      </MemoryRouter>
+      <AuthContext.Provider value={AUTHED}>
+        <MemoryRouter>
+          <ReceiptsPage />
+        </MemoryRouter>
+      </AuthContext.Provider>
     </QueryClientProvider>,
   );
 }

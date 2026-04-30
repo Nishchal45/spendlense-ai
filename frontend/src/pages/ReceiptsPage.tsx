@@ -1,4 +1,5 @@
 import { useReceipts } from '@/api/receipts';
+import { InboxAddressCard } from '@/components/receipts/InboxAddressCard';
 import { ReceiptCard } from '@/components/receipts/ReceiptCard';
 import { ReceiptUploader } from '@/components/receipts/ReceiptUploader';
 
@@ -26,8 +27,9 @@ export function ReceiptsPage() {
         </p>
       </header>
 
-      <div className="mb-8">
+      <div className="space-y-4 mb-8">
         <ReceiptUploader />
+        <InboxAddressCard />
       </div>
 
       {isPending && <p className="text-slate-500 text-center py-8">Loading receipts…</p>}

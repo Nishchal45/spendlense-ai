@@ -12,6 +12,12 @@ export interface User {
   id: string;
   email: string;
   created_at: string;
+  /** Per-user forwarding-token. Sensitive — treat like a long-lived
+   * bearer for the inbound-email surface. */
+  inbox_token: string;
+  /** Convenience-rendered ``receipts+<token>@<inbox_email_domain>``
+   * — the address the user pastes into a Gmail filter. */
+  inbox_address: string;
 }
 
 export interface TokenResponse {
