@@ -53,6 +53,23 @@ class Settings(BaseSettings):
     # rejects every request with a 503 when it's unset.
     inbound_email_secret: str | None = None
 
+    # ----- Gmail OAuth (Phase 5.6) ----------------------------------
+    # OAuth client credentials issued by the Google Cloud project
+    # backing the SpendLens production deploy. Both optional in dev
+    # so the app boots without Gmail wiring; the integration routes
+    # return 503 when either is missing. Never logged.
+    gmail_oauth_client_id: str | None = None
+    gmail_oauth_client_secret: str | None = None
+    # Where Google sends the user back after consent. Must exactly
+    # match a redirect URI registered with the OAuth client.
+    gmail_oauth_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    # Fernet key (URL-safe base64-encoded 32 bytes). Used to encrypt
+    # the user's Gmail refresh token at rest. Generate once via
+    # ``Fernet.generate_key()`` and pin in ``.env``. Optional in dev
+    # so the rest of the app boots; the integration routes 503 on
+    # any encrypt / decrypt path when unset.
+    gmail_token_encryption_key: str | None = None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
