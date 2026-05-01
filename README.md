@@ -39,6 +39,7 @@ Under active development. Milestone checklist:
 - [x] LLM categorisation with correction feedback loop
 - [x] Insights engine (trends, anomalies, budgets)
 - [x] React dashboard
+- [x] Forward-to-email ingestion (`receipts+<token>@…`)
 - [ ] CI/CD and one-command deploy
 
 ## Stack
