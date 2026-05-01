@@ -21,6 +21,17 @@ class Receipt(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_receipts_user_created", "user_id", "created_at"),
         Index("ix_receipts_status", "status"),
+        # Per-user dedup for inbound-email ingestion (Phase 5.5).
+        # Partial unique index — only enforces uniqueness when
+        # ``external_message_id`` is set, so manual uploads (which
+        # leave it NULL) don't collide.
+        Index(
+            "uq_receipts_user_external_message_id",
+            "user_id",
+            "external_message_id",
+            unique=True,
+            postgresql_where="external_message_id IS NOT NULL",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -47,6 +58,12 @@ class Receipt(Base, TimestampMixin):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Provider-supplied message id for receipts ingested via the
+    # inbound-email webhook (Phase 5.5). NULL for receipts uploaded
+    # directly. The partial unique index in ``__table_args__`` gives
+    # us per-user dedup against the same email being delivered twice.
+    external_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="receipts")
     expense: Mapped["Expense | None"] = relationship(back_populates="receipt", uselist=False)
