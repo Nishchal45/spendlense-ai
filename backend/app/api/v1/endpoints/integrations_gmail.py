@@ -1,6 +1,6 @@
-"""Gmail OAuth endpoints — Phase 5.6 PR B.
+"""Gmail OAuth + Pub/Sub endpoints — Phase 5.6 PRs B + C.
 
-Four routes:
+Five routes:
 
 * ``GET  /integrations/gmail/connect`` — auth required. Returns the
   Google consent URL for the current user. The frontend redirects
@@ -14,6 +14,11 @@ Four routes:
 * ``DELETE /integrations/gmail/{id}`` — auth required. Deletes the
   row and best-effort revokes the refresh token at Google's
   endpoint.
+* ``POST /integrations/gmail/push`` — **no bearer auth**. Google
+  Cloud Pub/Sub signs every push with an OIDC ID-token JWT; the
+  JWT is the authenticator. Verified body decodes to a Gmail
+  notification, which we resolve to a ``gmail_connections`` row by
+  ``emailAddress`` and hand off to a Celery task.
 
 Why the frontend redirect URL is hardcoded to a relative path: the
 API and the frontend share an origin in the deploy (reverse-proxy
@@ -28,7 +33,7 @@ from uuid import UUID
 
 import httpx
 import structlog
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.api.v1.deps import CurrentUser, SessionDep
@@ -46,6 +51,7 @@ from app.schemas.gmail_connection import (
 from app.services.gmail_connection_service import (
     GmailConnectionNotFoundError,
     delete_connection,
+    find_by_google_email,
     get_connection,
     list_connections,
     upsert_connection,
@@ -57,6 +63,11 @@ from app.services.gmail_oauth_service import (
     build_consent_url,
     exchange_code,
     revoke_refresh_token,
+)
+from app.services.gmail_pubsub_service import (
+    PushNotConfiguredError,
+    PushVerificationError,
+    verify_push_request,
 )
 
 router = APIRouter(prefix="/integrations/gmail", tags=["integrations"])
@@ -203,4 +214,77 @@ async def disconnect(
                     connection_id=str(connection_id),
                 )
 
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/push", include_in_schema=False)
+async def push(
+    request: Request,
+    session: SessionDep,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    """Receive a Pub/Sub push delivery for a Gmail mailbox change.
+
+    Auth model: the JWT in ``Authorization: Bearer`` is the
+    authenticator (verified inside :func:`verify_push_request`); the
+    Pub/Sub message body is then trusted to carry the user's email
+    address and Gmail history cursor.
+
+    Why we always return 200 once the JWT verifies, even when no
+    matching connection exists: Pub/Sub treats any non-2xx as a
+    delivery failure and retries with exponential backoff. Returning
+    404 for "we don't know that email" would burn Google's retry
+    quota on a user who has already disconnected. We log + 200.
+    """
+    raw_body = await request.body()
+
+    try:
+        message = verify_push_request(
+            authorization_header=authorization,
+            raw_body=raw_body,
+        )
+    except PushNotConfiguredError as exc:
+        # Push subscription wired up but env vars missing. 503 so
+        # the misconfiguration is visible in Pub/Sub's dead-letter
+        # metrics rather than masquerading as an auth failure.
+        log.error("gmail.push_not_configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gmail push is not configured",
+        ) from exc
+    except PushVerificationError as exc:
+        log.warning("gmail.push_unauthorized", reason=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Push authentication failed",
+        ) from exc
+
+    connections = await find_by_google_email(session, google_email=message.email_address)
+    if not connections:
+        # Common cause: the user disconnected on our end but their
+        # Gmail watch hasn't been torn down yet. Log + ack so
+        # Pub/Sub stops retrying.
+        log.info(
+            "gmail.push_no_matching_connection",
+            email_address=message.email_address,
+            pubsub_message_id=message.pubsub_message_id,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # Local import to dodge a real circular: the task module
+    # imports our settings + sync service, which transitively pull
+    # endpoint registration. The local import keeps router import
+    # ordering clean.
+    from app.tasks.gmail_history_sync import gmail_history_sync
+
+    for connection in connections:
+        gmail_history_sync.delay(str(connection.id), message.history_id)
+
+    log.info(
+        "gmail.push_accepted",
+        email_address=message.email_address,
+        history_id=message.history_id,
+        pubsub_message_id=message.pubsub_message_id,
+        connections=len(connections),
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
