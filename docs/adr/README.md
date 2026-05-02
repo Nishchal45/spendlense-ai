@@ -16,3 +16,4 @@ implements it. Use `0000-template.md` as the starting point.
 | [0006](0006-frontend-architecture.md) | Frontend architecture (Vite + React + TS strict, TanStack Query, in-memory auth, native `<dialog>`, PWA share_target via SW) | Accepted |
 | [0007](0007-insights-architecture.md) | Insights architecture (on-demand Postgres aggregation, dense trend grid, z-score anomalies with statistical defenses, Recharts) | Accepted |
 | [0008](0008-inbound-email.md) | Forward-to-email ingestion (128-bit token, Stripe-style HMAC webhook, per-user partial-unique dedup, provider-agnostic canonical payload) | Accepted |
+| [0009](0009-gmail-oauth-pubsub.md) | Gmail OAuth + Pub/Sub push ingestion (Web Server flow, HMAC-signed `state`, Fernet-encrypted refresh tokens, OIDC-JWT push verification, `httpx` over `google-api-python-client`, incremental `historyId` sync, reuse of `process_inbound_email`) | Accepted |

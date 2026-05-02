@@ -93,14 +93,50 @@ mirrors the status column here. Dates are targets, not contracts.
   unset secret
 - Shape documented in [ADR-0008](adr/0008-inbound-email.md)
 
-## Phase 5.6 — Zero-touch ingestion: Gmail OAuth + generic IMAP
+## Phase 5.6 — Zero-touch ingestion: Gmail OAuth + Pub/Sub push ✅
 
-- Gmail API with `gmail.readonly` scope + Cloud Pub/Sub push
-  notifications (no polling)
-- Generic IMAP IDLE for Outlook / iCloud / Fastmail / self-hosted
-- One ingestion queue across every channel — downstream OCR pipeline
-  doesn't care where a message came from
-- Encrypted-at-rest refresh tokens, per-user revocation flow
+- OAuth 2.0 Web Server flow with `gmail.readonly` scope,
+  `access_type=offline`, and `prompt=consent` so every grant mints
+  a fresh refresh token. PKCE rejected because we have a backend
+  and the token must persist server-side
+- Encrypted-at-rest refresh tokens via Fernet (AES-128-CBC + HMAC-
+  SHA256); `gmail_connections` upserted on
+  `(user_id, google_email)` so re-consenting is idempotent
+- HMAC-signed `state` envelope (`<user_id>.<nonce>.<issued_at>.<hmac>`)
+  authenticating the OAuth callback — no session cookie required,
+  10-minute window, constant-time verify
+- Cloud Pub/Sub push notifications with OIDC ID-token JWT
+  verification (`google-auth` only for the JWT,
+  `urllib3`-transported, JWKS-cached); audience pinned to push URL,
+  `email` claim pinned to configured service account, issuer pinned
+  to `https://accounts.google.com`
+- `httpx` for every Gmail REST call (token exchange, userinfo,
+  revocation, `users.history.list`, `users.messages.get`,
+  `users.messages.attachments.get`) — `google-api-python-client`
+  rejected to avoid 30 MB of generated stubs for six endpoints
+- Incremental sync via Gmail's `historyId` cursor; first push
+  seeds the cursor without processing (Gmail's recommended
+  bootstrap), subsequent pushes pull deltas, cursor advances after
+  successful processing so a crash mid-run replays the same delta
+- 404 from `users.history.list` (cursor older than Gmail's ~7-day
+  retention) handled by advancing the cursor to the push value
+- Receipts created via the existing
+  `inbound_email_service.process_inbound_email` from ADR-0008 —
+  Gmail attachments are lifted into the canonical `InboundEmail`
+  shape with a synthesised `to = receipts+<inbox_token>@…` so the
+  same dedup, MIME-sniff, S3-first write, and OCR enqueue path
+  applies
+- Frontend `GmailConnectionsCard` + `GmailRedirectBanner` on the
+  receipts page; "Connect Gmail" full-window navigates to consent,
+  callback redirects back with `?gmail=connected` /
+  `?gmail=error&reason=...`, banner strips the params after
+  rendering and invalidates the connections query
+- `users.watch` lifecycle (7-day expiry) explicitly deferred to
+  Phase 8's Celery beat; `watch_expiration` column already in
+  schema for the future renewal cron
+- Generic IMAP IDLE for Outlook / iCloud / Fastmail deferred to a
+  separate ADR follow-up
+- Shape documented in [ADR-0009](adr/0009-gmail-oauth-pubsub.md)
 
 ## Phase 6 — Insights ✅
 
