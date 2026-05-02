@@ -48,6 +48,12 @@ dependencies = [
   # We rasterise the first page of email-receipt PDFs so the same
   # Tesseract path picks them up.
   "pdf2image>=1.17,<2.0",
+  # Google's auth library — used *only* to verify the JWT Google Cloud
+  # Pub/Sub signs every push delivery with. We deliberately don't use
+  # ``google-api-python-client`` for the Gmail REST calls themselves;
+  # that pulls in 30 MB of generated stubs for an API surface we use
+  # six endpoints of. Plain httpx is the cheaper call.
+  "google-auth>=2.35,<3.0",
 ]
 
 [project.optional-dependencies]

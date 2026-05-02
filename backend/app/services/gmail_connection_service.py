@@ -86,6 +86,25 @@ async def list_connections(session: AsyncSession, *, user_id: UUID) -> Sequence[
     return rows.all()
 
 
+async def find_by_google_email(
+    session: AsyncSession, *, google_email: str
+) -> Sequence[GmailConnection]:
+    """Look up every connection for a given Gmail address.
+
+    Used by the Pub/Sub push handler — the push payload identifies
+    the user by their Gmail address, not by our internal user id.
+    Multiple rows are theoretically possible (two users connect the
+    same account), so we return all matches and let the caller fan
+    out one Celery task per match.
+    """
+    rows = (
+        await session.execute(
+            select(GmailConnection).where(GmailConnection.google_email == google_email)
+        )
+    ).scalars()
+    return rows.all()
+
+
 async def get_connection(
     session: AsyncSession, *, user_id: UUID, connection_id: UUID
 ) -> GmailConnection:

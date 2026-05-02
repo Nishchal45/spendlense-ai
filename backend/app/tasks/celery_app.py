@@ -45,6 +45,7 @@ _TASK_MODULES: tuple[str, ...] = (
     "app.tasks.ping",
     "app.tasks.process_receipt",
     "app.tasks.categorise_receipt",
+    "app.tasks.gmail_history_sync",
 )
 
 

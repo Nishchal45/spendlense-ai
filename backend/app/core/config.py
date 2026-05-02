@@ -69,6 +69,22 @@ class Settings(BaseSettings):
     # so the rest of the app boots; the integration routes 503 on
     # any encrypt / decrypt path when unset.
     gmail_token_encryption_key: str | None = None
+    # Audience claim Google Cloud Pub/Sub puts in the JWT it signs
+    # every push delivery with. Set to the same string configured on
+    # the Pub/Sub subscription (typically the push endpoint URL,
+    # e.g. ``https://api.spendlens.example/api/v1/integrations/gmail/push``).
+    # The push handler rejects deliveries whose ``aud`` claim doesn't
+    # match — that's how we know the request really came from our
+    # subscription and not someone replaying a Pub/Sub push from an
+    # unrelated project. Optional in dev so the app boots; the push
+    # endpoint 503s when unset.
+    gmail_pubsub_audience: str | None = None
+    # Email address of the service account Google signs Pub/Sub push
+    # JWTs with. Set to the service account configured on the push
+    # subscription (e.g. ``pubsub-push@<project>.iam.gserviceaccount.com``).
+    # The push handler also requires ``iss`` to be Google's well-known
+    # OIDC issuer. Optional in dev for the same reason as the audience.
+    gmail_pubsub_service_account: str | None = None
 
 
 @lru_cache(maxsize=1)
