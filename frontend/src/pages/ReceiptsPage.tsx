@@ -1,4 +1,6 @@
 import { useReceipts } from '@/api/receipts';
+import { GmailConnectionsCard } from '@/components/receipts/GmailConnectionsCard';
+import { GmailRedirectBanner } from '@/components/receipts/GmailRedirectBanner';
 import { InboxAddressCard } from '@/components/receipts/InboxAddressCard';
 import { ReceiptCard } from '@/components/receipts/ReceiptCard';
 import { ReceiptUploader } from '@/components/receipts/ReceiptUploader';
@@ -28,8 +30,10 @@ export function ReceiptsPage() {
       </header>
 
       <div className="space-y-4 mb-8">
+        <GmailRedirectBanner />
         <ReceiptUploader />
         <InboxAddressCard />
+        <GmailConnectionsCard />
       </div>
 
       {isPending && <p className="text-slate-500 text-center py-8">Loading receipts…</p>}
