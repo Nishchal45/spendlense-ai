@@ -36,6 +36,24 @@ function jsonResponse<T>(body: T, status = 200): Response {
   });
 }
 
+// The page fires queries against several endpoints in parallel
+// (receipts list + Gmail connections). Routing the mock by URL
+// substring keeps the test resilient to query ordering — without
+// this, the receipts mock would race the Gmail mock and either
+// could win.
+function routeFetchByUrl(routes: Record<string, () => Response>): void {
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = input instanceof URL ? input.pathname : String(input);
+    for (const [path, response] of Object.entries(routes)) {
+      if (url.includes(path)) return response();
+    }
+    return new Response(JSON.stringify({ detail: `unmocked ${url}` }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+}
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: {
@@ -68,7 +86,10 @@ const SAMPLE_RECEIPT = {
 
 describe('ReceiptsPage', () => {
   it('shows the empty-state when no receipts exist', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [] }));
+    routeFetchByUrl({
+      '/receipts': () => jsonResponse({ items: [] }),
+      '/integrations/gmail': () => jsonResponse({ items: [] }),
+    });
     renderPage();
 
     await waitFor(() => {
@@ -77,7 +98,10 @@ describe('ReceiptsPage', () => {
   });
 
   it('renders the upload zone with the size + format hint', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [] }));
+    routeFetchByUrl({
+      '/receipts': () => jsonResponse({ items: [] }),
+      '/integrations/gmail': () => jsonResponse({ items: [] }),
+    });
     renderPage();
 
     await waitFor(() => {
@@ -89,11 +113,13 @@ describe('ReceiptsPage', () => {
   });
 
   it('renders one card per receipt in the list', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        items: [SAMPLE_RECEIPT, { ...SAMPLE_RECEIPT, id: 'r2', status: 'failed' as const }],
-      }),
-    );
+    routeFetchByUrl({
+      '/receipts': () =>
+        jsonResponse({
+          items: [SAMPLE_RECEIPT, { ...SAMPLE_RECEIPT, id: 'r2', status: 'failed' as const }],
+        }),
+      '/integrations/gmail': () => jsonResponse({ items: [] }),
+    });
     renderPage();
 
     await waitFor(() => {
