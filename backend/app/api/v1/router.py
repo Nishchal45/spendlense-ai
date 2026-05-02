@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     health,
     inbound,
     insights,
+    integrations_gmail,
     receipts,
 )
 
@@ -18,3 +19,4 @@ api_router.include_router(receipts.router)
 api_router.include_router(insights.router)
 api_router.include_router(budgets.router)
 api_router.include_router(inbound.router)
+api_router.include_router(integrations_gmail.router)
