@@ -48,10 +48,14 @@ class User(Base, TimestampMixin):
     corrections: Mapped[list["CategoryCorrection"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    gmail_connections: Mapped[list["GmailConnection"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 # Avoid circular import at runtime but keep type hints resolvable.
 from app.models.budget import Budget  # noqa: E402
 from app.models.category_correction import CategoryCorrection  # noqa: E402
 from app.models.expense import Expense  # noqa: E402
+from app.models.gmail_connection import GmailConnection  # noqa: E402
 from app.models.receipt import Receipt  # noqa: E402
