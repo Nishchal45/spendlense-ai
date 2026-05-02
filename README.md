@@ -40,6 +40,7 @@ Under active development. Milestone checklist:
 - [x] Insights engine (trends, anomalies, budgets)
 - [x] React dashboard
 - [x] Forward-to-email ingestion (`receipts+<token>@…`)
+- [x] Gmail OAuth ingestion (Pub/Sub push + incremental `historyId` sync)
 - [ ] CI/CD and one-command deploy
 
 ## Stack
